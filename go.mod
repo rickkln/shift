@@ -1,4 +1,4 @@
-module github.com/luno/shift
+module github.com/rickkln/shift
 
 go 1.19
 
