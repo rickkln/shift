@@ -13,8 +13,6 @@ package main
 import (
 	"bytes"
 	"flag"
-	"github.com/luno/jettison/errors"
-	"github.com/luno/jettison/j"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -26,6 +24,9 @@ import (
 	"regexp"
 	"strings"
 	"text/template"
+
+	"github.com/luno/jettison/errors"
+	"github.com/luno/jettison/j"
 
 	"golang.org/x/tools/imports"
 )
@@ -215,14 +216,21 @@ func generateSrc(pkgPath, table string, inserters, updaters []string, statusFiel
 					inspectErr = errors.New("Inserter/updaters, but one field multiple names: %v", j.MKV{"name": typ, "field_names": f.Names})
 				}
 				name := f.Names[0].Name
+				tagOpts := parseShiftTag(f.Tag)
 				if name == idFieldName {
-					st.HasID = true
+					if !tagOpts.contains("omit") {
+						st.HasID = true
+					}
 					if ti, ok := f.Type.(*ast.Ident); !ok {
 						inspectErr = errors.New("ID field should be of type int64 or string")
 					} else {
 						st.IDType = ti.Name
 					}
 					// Skip ID fields for updaters (since they are hardcoded)
+					continue
+				}
+
+				if tagOpts.contains("omit") {
 					continue
 				}
 
@@ -283,6 +291,35 @@ func generateSrc(pkgPath, table string, inserters, updaters []string, statusFiel
 		return nil, errors.Wrap(err, "Failed executing template")
 	}
 	return imports.Process(filePath, out.Bytes(), nil)
+}
+
+// parseShiftTag extracts all the values given for the tag "shift" for example:
+// with the field and tag ID int64 `shift:"omit"` it will extract [omit]
+func parseShiftTag(tags *ast.BasicLit) tagOptions {
+	if tags == nil {
+		return nil
+	}
+	tks := strings.Replace(tags.Value, "`", "", -1)
+	st := reflect.StructTag(tks)
+	t := st.Get("shift")
+	return strings.Split(t, ",")
+}
+
+type tagOptions []string
+
+// contains reports whether a comma-separated list of options
+// contains a particular substr flag. substr must be surrounded by a
+// string boundary or commas.
+func (opts tagOptions) contains(optionName string) bool {
+	if len(opts) == 0 {
+		return false
+	}
+	for _, opt := range opts {
+		if opt == optionName {
+			return true
+		}
+	}
+	return false
 }
 
 func execTpl(out io.Writer, tpl string, data Data) error {

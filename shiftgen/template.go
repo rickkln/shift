@@ -50,10 +50,10 @@ func (一 {{.Type}}) Insert(ctx context.Context, tx *sql.Tx, st shift.Status) ({
 {{if not .HasID}}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return 0, err
+		return {{if eq .IDType "int64"}}0{{else}}""{{end}}, err
 	}
 {{end}}
-	return {{if .HasID}}一.ID{{else}}id{{end}}, nil
+	return {{if .HasID}}一.ID{{else if eq .IDType "int64"}}id{{else}}strconv.FormatInt(id, 10){{end}}, nil
 }
 {{end}}{{ range .Updaters }}
 // Update updates the status of a {{.Table}} table entity. All the fields of the
